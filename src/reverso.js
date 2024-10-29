@@ -8,7 +8,7 @@ let cards = [];
 const reverso = new Reverso();
 
 try {
-    const data = fs.readFileSync("./src/test.txt", "utf8");
+    const data = fs.readFileSync("./src/input.txt", "utf8");
     linesArray = data.split("\r\n");
     console.log(linesArray);
 } catch (err) {
