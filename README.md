@@ -14,7 +14,7 @@ Reverso Anki is a Node.js application that processes a list of German words, tra
 
 1. Clone the repository:
     ```sh
-    git clone https://github.com/yourusername/reverso-anki.git
+    git clone https://github.com/viniciusbregoli/reverso-anki.git
     cd reverso-anki
     ```
 
