@@ -1,25 +1,12 @@
-import fs from "fs";
-import Reverso from "reverso-api";
+import fs from "fs"; // File system module, used to read and write files
+import Reverso from "reverso-api"; // Reverso API module, used to translate words
 import { downloadPronunciation } from "./downloadAudio.js";
-
 const writeStream = fs.createWriteStream("./src/output.txt");
-let linesArray = [];
 let cards = [];
 const reverso = new Reverso();
 
-try {
-    const data = fs.readFileSync("./src/input.txt", "utf8");
-    linesArray = data.split("\r\n");
-    console.log(linesArray);
-} catch (err) {
-    console.error(err);
-}
-
-processLines().catch((error) => {
-    console.error("Error processing cards:", error);
-});
-
-async function processLines() {
+// Function to process each line
+export async function processLines(linesArray) {
     for (let i = 0; i < linesArray.length; i++) {
         await processLine(capitalizeString(linesArray[i]), i); // Await each line processing to ensure it's synchronous
     }
@@ -28,15 +15,13 @@ async function processLines() {
         // Check if the context array has at least one element
         if (card.context.length > 0) {
             writeStream.write(
-                `[sound:${card.source.replace(/\s+/g, "_")}_pronunciation.mp3] ${
-                    card.source
-                } <br> <i>${card.context[0]["german"]}</i>; ${card.translation.join(", ")} <br> <i>${card.context[0]["english"]}</i> ` + "\n"
+                `[sound:${card.source.replace(/\s+/g, "_")}_pronunciation.mp3] ${card.source} <br> <i>${
+                    card.context[0]["german"]
+                }</i>; ${card.translation.join(", ")} <br> <i>${card.context[0]["english"]}</i> ` + "\n"
             );
         } else {
             writeStream.write(
-                `[sound:${card.source.replace(/\s+/g, "_")}_pronunciation.mp3] ${
-                    card.source
-                } <br> ${card.translation.join(", ")} ` + "\n"
+                `[sound:${card.source.replace(/\s+/g, "_")}_pronunciation.mp3] ${card.source} <br> ${card.translation.join(", ")} ` + "\n"
             );
         }
     });
@@ -62,6 +47,7 @@ async function processLine(line, index) {
                 console.log(`Successfull translation for word ${line}`);
                 success = true;
             }
+
             if (response.context && response.context.examples) {
                 for (let j = 0; j < 3; j++) {
                     if (response.context.examples[j]) {
@@ -80,6 +66,7 @@ async function processLine(line, index) {
                 cards.push(newCard);
             } else {
                 console.error(`Invalid response for line ${index}: missing examples`);
+                continue;
             }
         } catch (error) {
             console.error(`Error processing line ${index}:`, error);

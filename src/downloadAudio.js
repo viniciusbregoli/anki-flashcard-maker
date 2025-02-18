@@ -6,17 +6,9 @@ import dotenv from "dotenv";
 dotenv.config();
 const apiKey = process.env.API_KEY;
 
-const startDirectory = "C:\\";
-let folderPath = findFolder(startDirectory, "collection.media");
-if (folderPath) {
-    folderPath = folderPath.replace(/\\/g, "/"); // Replace backslashes with forward slashes
-} else {
-    console.log('Folder "collection.media" not found.');
-}
-console.log(`Path to collection.media: ${folderPath}`);
-
 // Function to download MP3 pronunciation for a given word
 export async function downloadPronunciation(word, language = "de", id) {
+    const folderPath = "/home/bregoli/.local/share/Anki2/User 1/collection.media";
     try {
         // Define the API endpoint with dynamic word and language
         const apiUrl = `https://apifree.forvo.com/key/${apiKey}/format/xml/action/standard-pronunciation/word/${word}/language/${language}`;
@@ -42,25 +34,4 @@ export async function downloadPronunciation(word, language = "de", id) {
     } catch (error) {
         console.error("Error downloading pronunciation, no audio available");
     }
-}
-
-function findFolder(dir, folderName) {
-    try {
-        const files = fs.readdirSync(dir, { withFileTypes: true });
-        for (const file of files) {
-            const fullPath = path.join(dir, file.name);
-            if (file.isDirectory()) {
-                if (file.name === folderName) {
-                    console.log(`Folder found at: ${fullPath}`);
-                    return fullPath; // Exit the function once the folder is found
-                }
-                // Recursively search in subdirectories
-                const result = findFolder(fullPath, folderName);
-                if (result) return result; // Stop if folder is found
-            }
-        }
-    } catch (err) {
-        // Handle permission errors or other read issues silently
-    }
-    return null; // Return null if the folder is not found in this path
 }
