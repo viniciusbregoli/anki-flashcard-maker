@@ -1,49 +1,54 @@
-# Reverso Anki
+# OpenAI Anki
 
-Reverso Anki is a Node.js application that processes a list of German words, translates them to English using the Reverso API, and downloads their pronunciation. The results are written to an output file in a format suitable for Anki flashcards.
+An AI-powered Python tool to automatically create German Anki flashcards. It uses the OpenAI API for translation, gender detection, and context sentences, and the Forvo API for audio pronunciations.
 
-## Table of Contents
+## Features
 
-- [Reverso Anki](#reverso-anki)
-  - [Table of Contents](#table-of-contents)
-  - [Installation](#installation)
-  - [Usage](#usage)
-  - [Configuration](#configuration)
+- **AI-Powered Translations**: Uses OpenAI (`gpt-4o`) for accurate German-to-English translations.
+- **Smart Gender Detection**: AI determines the grammatical gender (`der`, `die`, `das`) of each noun.
+- **AI Context Generation**: Automatically creates simple, natural example sentences for each word.
+- **Audio Pronunciations**: Fetches and embeds real human pronunciations from Forvo.
+- **Fully Automated**: Processes a list of words from `input.txt` and generates ready-to-import Anki cards.
+
+## Requirements
+
+- Python 3.7+
+- Forvo API Key (for audio)
+- OpenAI API Key (for all text generation)
 
 ## Installation
 
-1. Clone the repository:
-    ```sh
-    git clone https://github.com/viniciusbregoli/reverso-anki.git
-    cd reverso-anki
+1.  **Clone the repository and navigate into it.**
+2.  **Install dependencies:**
+    ```bash
+    pip install -r requirements.txt
     ```
+3.  **Set up API Keys:**
+    -   Rename `env_template.txt` to `.env`.
+    -   Add your Forvo and OpenAI API keys to the `.env` file.
 
-2. Install the dependencies:
-    ```sh
-    npm install
+## How to Use
+
+1.  **Add Words**: Open `input.txt` and add your list of German words, one word per line.
+2.  **Run the Script**:
+    ```bash
+    python main.py
     ```
+3.  **Import to Anki**:
+    -   A new `output.txt` file will be created.
+    -   Open Anki, go to `File > Import`, and select `output.txt`.
+    -   The audio files in the `audio/` directory need to be manually moved to your Anki `collection.media` folder.
 
-3. Create a `.env` file in the root directory and add your API key:
-    ```env
-    API_KEY=your_api_key_here
-    ```
+## Project Structure
 
-## Usage
-
-1. Prepare your input file:
-    - Create a file named `input.txt` in the `src` directory.
-    - Add the German words you want to process, each on a new line.
-
-2. Run the application:
-    ```sh
-    node src/reverso.js
-    ```
-
-3. Check the `output.txt` file in the `src` directory for the results.
-
-## Configuration
-
-- **API Key**: The application uses the Forvo API to download pronunciations. You need to provide your API key in the `.env` file.
-- **Input File**: The input file (`input.txt`) should be placed in the `src` directory and contain the German words to be processed.
-- **Output File**: The results will be written to `output.txt` in the `src` directory.
-
+```
+openai-anki/
+├── main.py                 # Main entry point
+├── src/                    # Source code
+│   ├── openai_api.py      # Handles all OpenAI API calls
+│   └── ...                 # Other source files
+├── utils/                  # Helper functions
+├── input.txt               # Your list of German words
+├── output.txt              # Generated Anki cards
+└── audio/                  # Downloaded .mp3 pronunciations
+```

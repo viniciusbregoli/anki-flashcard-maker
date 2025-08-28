@@ -1,0 +1,7 @@
+# Forvo API Key for audio pronunciations
+# Get a free key at: https://forvo.com/
+API_KEY=your_forvo_api_key_here
+
+# OpenAI API Key for translation, gender, and context
+# Get a free key with credits at: https://platform.openai.com/api-keys
+OPENAI_API_KEY=your_openai_api_key_here

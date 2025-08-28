@@ -1,4 +1,5 @@
-/.env
 /node_modules
-src/output.txt
-src/input.txt
+output.txt
+/__pycache__/
+.env
+/audio
