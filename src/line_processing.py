@@ -79,29 +79,31 @@ async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
         return None
 
 def write_cards_to_file(cards: List[Card], output_file_path: str):
-    """Write all cards to the output file in Anki format."""
+    """Write all cards to the output file in Anki format, with a semicolon separating the front and back fields."""
     try:
         with open(output_file_path, 'w', encoding='utf-8') as file:
             for card in cards:
-                gender_display = f" ({card.gender})" if card.gender and card.gender != "N/A" else ""
+                # Prepare all the pieces of the card
+                gender_display = f"({card.gender}) " if card.gender and card.gender != "N/A" else ""
+                sound_field = f"[sound:{sanitize_filename(card.source)}_pronunciation.mp3]"
+                word_translation = ', '.join(card.translation)
                 
+                # Build the front of the card
+                front_parts = [f"{sound_field} {gender_display}{card.source}"]
+                back_parts = [word_translation]
+
                 if card.context and card.context[0].get('german') != "N/A":
                     context_german = card.context[0]['german']
                     context_english = card.context[0]['english']
-                    line = (
-                        f"[sound:{sanitize_filename(card.source)}_pronunciation.mp3] "
-                        f"{card.source}{gender_display} <br> "
-                        f"{', '.join(card.translation)} <br> "
-                        f"<i>{context_german}</i> <br> "
-                        f"<i>{context_english}</i>\n"
-                    )
-                else:
-                    line = (
-                        f"[sound:{sanitize_filename(card.source)}_pronunciation.mp3] "
-                        f"{card.source}{gender_display} <br> "
-                        f"{', '.join(card.translation)}\n"
-                    )
-                file.write(line)
+                    front_parts.append(f"<i>{context_german}</i>")
+                    back_parts.append(f"<i>{context_english}</i>")
+                
+                front_field = "<br>".join(front_parts)
+                back_field = "<br>".join(back_parts)
+
+                # Write to file with a semicolon separator
+                file.write(f"{front_field};{back_field}\n")
+
         print(f"Cards written to: {output_file_path}")
     except Exception as error:
         print(f"Error writing to output file: {error}")
