@@ -1,14 +1,16 @@
-# OpenAI Anki
+# Reverso Anki
 
 An AI-powered Python tool to automatically create German Anki flashcards. It uses the OpenAI API for translation, gender detection, and context sentences, and the Forvo API for audio pronunciations.
 
 ## Features
 
 - **AI-Powered Translations**: Uses OpenAI (`gpt-4o`) for accurate German-to-English translations.
-- **Smart Gender Detection**: AI determines the grammatical gender (`der`, `die`, `das`) of each noun.
-- **AI Context Generation**: Automatically creates simple, natural example sentences for each word.
-- **Audio Pronunciations**: Fetches and embeds real human pronunciations from Forvo.
-- **Fully Automated**: Processes a list of words from `input.txt` and generates ready-to-import Anki cards.
+- **Multiple Input Types**: Supports single words, expressions, and complete sentences.
+- **Smart Gender Detection**: AI determines the grammatical gender (`der`, `die`, `das`) for nouns.
+- **AI Context Generation**: Automatically creates simple, natural example sentences for words and expressions.
+- **Audio Pronunciations**: Fetches and embeds real human pronunciations from Forvo (for single words only).
+- **Intelligent Processing**: Automatically detects input type and applies appropriate processing logic.
+- **Fully Automated**: Processes mixed content from `input.txt` and generates ready-to-import Anki cards.
 
 ## Requirements
 
@@ -29,7 +31,10 @@ An AI-powered Python tool to automatically create German Anki flashcards. It use
 
 ## How to Use
 
-1.  **Add Words**: Open `input.txt` and add your list of German words, one word per line.
+1.  **Add Content**: Open `input.txt` and add your German content, one item per line:
+    - Single words: `hauptbahnhof`
+    - Expressions: `guten Tag`
+    - Sentences: `Wie geht es dir?`
 2.  **Run the Script**:
     ```bash
     python main.py
@@ -48,7 +53,7 @@ openai-anki/
 │   ├── openai_api.py      # Handles all OpenAI API calls
 │   └── ...                 # Other source files
 ├── utils/                  # Helper functions
-├── input.txt               # Your list of German words
+├── input.txt               # Your German content (words, expressions, sentences)
 ├── output.txt              # Generated Anki cards
 └── audio/                  # Downloaded .mp3 pronunciations
 ```
