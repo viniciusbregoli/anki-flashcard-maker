@@ -6,7 +6,7 @@ import os
 import requests
 import xml.etree.ElementTree as ET
 from typing import Optional
-from utils.utils import ensure_directory_exists, sanitize_filename
+from utils import ensure_directory_exists, sanitize_filename
 
 
 class AudioDownloader:
@@ -64,7 +64,7 @@ class AudioDownloader:
             ensure_directory_exists(output_dir)
 
             # Save the MP3 file
-            filename = f"{sanitize_filename(word)}_pronunciation.mp3"
+            filename = f"{sanitize_filename(word.lower())}_pronunciation.mp3"
             file_path = os.path.join(output_dir, filename)
 
             with open(file_path, "wb") as f:

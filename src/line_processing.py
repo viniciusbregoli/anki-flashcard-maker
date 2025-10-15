@@ -8,7 +8,7 @@ import glob
 from typing import List, Dict, Any
 from openai_api import OpenAIAPI
 from download_audio import download_pronunciation
-from utils.utils import capitalize_string, sanitize_filename, detect_input_type
+from utils import capitalize_string, sanitize_filename, detect_input_type
 
 
 def cleanup_previous_audio():
@@ -131,7 +131,7 @@ def write_cards_to_file(cards: List[Card], output_file_path: str):
                         else ""
                     )
                     sound_field = (
-                        f"[sound:{sanitize_filename(card.source)}_pronunciation.mp3]"
+                        f"[sound:{sanitize_filename(card.source.lower())}_pronunciation.mp3]"
                     )
 
                     front_parts = [

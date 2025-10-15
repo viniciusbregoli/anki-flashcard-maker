@@ -19,7 +19,7 @@ class OpenAIAPI:
 
         # Use the async client
         self.client = openai.AsyncOpenAI(api_key=self.openai_api_key)
-        self.model = "gpt-4o"
+        self.model = "gpt-4o-mini"
 
     async def get_word_details(self, word: str) -> Dict[str, Any]:
         """
