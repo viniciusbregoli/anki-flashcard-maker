@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Sparkles, Download, Layers, Volume2, Type, ArrowRight, Zap, AlertCircle, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Sparkles, Download, Layers, Volume2, Type, ArrowRight, Zap, AlertCircle, ChevronLeft, ChevronRight, RefreshCw, Loader2 } from 'lucide-react';
 
 const CARDS_PER_PAGE = 6;
 
@@ -12,6 +12,7 @@ function App() {
   const [progress, setProgress] = useState(0);
   const [currentWord, setCurrentWord] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
+  const [regeneratingId, setRegeneratingId] = useState(null);
 
   // Derived state for pagination
   const totalPages = Math.ceil(cards.length / CARDS_PER_PAGE);
@@ -79,9 +80,39 @@ function App() {
       setError(err.message);
       setIsLoading(false);
     } finally {
-      // Don't turn off loading here immediately if successful, wait a bit for 100% animation?
-      // Or just turn it off. The done reading means stream ended.
       setIsLoading(false);
+    }
+  };
+
+  const handleRegenerateCard = async (cardToRegenerate) => {
+    try {
+      setRegeneratingId(cardToRegenerate.id);
+
+      // We will re-use the 'source' as the word. If the card was previously modified (e.g. stripped article), 
+      // this might send "Tisch" instead of "Der Tisch". This is usually fine as it regenerates correctly.
+      const response = await fetch('/api/regenerate-card', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          word: cardToRegenerate.source,
+          id: cardToRegenerate.id
+        }),
+      });
+
+      if (!response.ok) throw new Error('Failed to regenerate');
+
+      const data = await response.json();
+
+      if (data.status === 'success') {
+        setCards(prevCards => prevCards.map(c => c.id === cardToRegenerate.id ? data.card : c));
+      }
+
+    } catch (err) {
+      console.error("Regeneration failed", err);
+    } finally {
+      setRegeneratingId(null);
     }
   };
 
@@ -194,7 +225,7 @@ function App() {
 
           <div className="cards-grid">
             {currentCards.map((card) => (
-              <div key={card.id} className="glass-panel flashcard animate-fade-in">
+              <div key={card.id} className="glass-panel flashcard animate-fade-in relative">
                 <div className="card-header">
                   <div className="card-title-group">
                     {card.gender && card.gender !== 'N/A' && (
@@ -204,37 +235,53 @@ function App() {
                     )}
                     <div className="flex items-baseline gap-2 cursor-pointer group" onClick={() => {
                       if (card.audio) {
-                        new Audio(`/api/audio/${card.audio}`).play();
+                        new Audio(`/api/audio/${card.audio}?t=${Date.now()}`).play();
                       }
                     }}>
                       <div className="flex items-center gap-2">
                         <h3 className="card-word group-hover:text-violet-400 transition-colors">{card.source}</h3>
-                        {card.input_type === 'word' && <Volume2 size={18} className="icon-muted group-hover:text-violet-400" />}
+                        {card.audio && <Volume2 size={18} className="icon-muted group-hover:text-violet-400" />}
                       </div>
                       {card.plural && card.plural !== 'N/A' && (
                         <span className="text-slate-500 text-sm font-mono">(pl: {card.plural})</span>
                       )}
                     </div>
                   </div>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRegenerateCard(card);
+                    }}
+                    className="p-2 text-slate-500 hover:text-violet-400 disabled:opacity-50 transition-colors rounded-full hover:bg-slate-800/50 ml-auto"
+                    disabled={regeneratingId !== null}
+                    title="Regenerate this card"
+                  >
+                    {regeneratingId === card.id ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <RefreshCw size={16} />
+                    )}
+                  </button>
                 </div>
 
                 <p className="card-translation">
                   {card.translation.join(', ')}
                 </p>
 
-                {card.tip && (
-                  <div className="tip-box mb-3">
-                    <div className="flex gap-2 items-start text-sm text-yellow-200/80">
-                      <div className="mt-1"><AlertCircle size={14} className="text-yellow-400" /></div>
-                      <p className="m-0 italic">{card.tip}</p>
-                    </div>
-                  </div>
-                )}
-
                 {card.context && card.context[0] && card.context[0].german !== 'N/A' && (
                   <div className="context-box mt-auto">
                     <p className="context-de">"{card.context[0].german}"</p>
                     <p className="context-en">{card.context[0].english}</p>
+                  </div>
+                )}
+
+                {card.tip && (
+                  <div className="tip-box mt-3">
+                    <div className="flex gap-2 items-start text-sm text-yellow-200/80">
+                      <div className="mt-1"><AlertCircle size={14} className="text-yellow-400" /></div>
+                      <p className="m-0 italic">{card.tip}</p>
+                    </div>
                   </div>
                 )}
               </div>

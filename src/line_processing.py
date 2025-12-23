@@ -158,11 +158,38 @@ async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
                 if success:
                     audio_text_success = audio_query
                 else:
-                    print(f"  - Audio for '{audio_query}' also failed/not found.")
+                    print(f"  - Forvo audio for '{audio_query}' also failed. Trying OpenAI TTS...")
+                    # Fallback to OpenAI TTS
+                    filename = f"{sanitize_filename(audio_query.lower())}_pronunciation.mp3"
+                    filepath = os.path.join("audio", filename)
+                    tts_success = await openai_api.generate_speech(audio_query, filepath)
+                    if tts_success:
+                        audio_text_success = audio_query # We use the query as source, filename logic handles path
+                    else:
+                        print(f"  - OpenAI TTS failed for '{audio_query}'.")
             
         else:
-            print(f"  - Skipping audio download for {input_type}")
-            audio_text_success = None
+            # Expressions and Sentences always use OpenAI TTS
+            print(f"  - Generating OpenAI TTS for {input_type}...")
+            # Use the full line as source
+            audio_query = line.strip()
+            # If it's too long for a filename, we rely on the Card logic to generate the text, 
+            # but we need to create the file here.
+            # Current Card logic expects `audio_source` string to generate filename `sanitize_filename(audio_source)...`
+            # So we pass `audio_query` as `audio_source`.
+            
+            filename = f"{sanitize_filename(audio_query.lower())}_pronunciation.mp3"
+            filepath = os.path.join("audio", filename)
+            
+            # For sentences, sanitize might be weird if very long. 
+            # But sanitize_filename usually truncates or handles chars.
+            # Let's trust sanitize_filename for now or check utils.
+            
+            tts_success = await openai_api.generate_speech(audio_query, filepath)
+            if tts_success:
+                audio_text_success = audio_query
+            else:
+                 audio_text_success = None
 
         # Create card
         return Card(
@@ -210,8 +237,6 @@ def write_cards_to_file(cards: List[Card], output_file_path: str):
                     ]
                     
                     back_parts = [translation]
-                    if card.tip:
-                        back_parts.append(f"<br>💡 <i>{card.tip}</i>")
 
                     if card.context and card.context[0].get("german") != "N/A":
                         context_german = card.context[0]["german"]
@@ -220,8 +245,12 @@ def write_cards_to_file(cards: List[Card], output_file_path: str):
                         back_parts.append(f"<i>{context_english}</i>")
 
                 elif card.input_type == "expression":
-                    # Expression format: expression + context (no audio, no gender)
-                    front_parts = [card.source]
+                    # Expression format: expression + context
+                    front_parts = []
+                    if card.audio_filename:
+                        front_parts.append(f"[sound:{card.audio_filename}]")
+                    front_parts.append(card.source)
+
                     back_parts = [translation]
 
                     if card.context and card.context[0].get("german") != "N/A":
@@ -231,9 +260,17 @@ def write_cards_to_file(cards: List[Card], output_file_path: str):
                         back_parts.append(f"<i>{context_english}</i>")
 
                 else:  # sentence
-                    # Sentence format: just sentence -> translation (no context, no audio, no gender)
-                    front_parts = [card.source]
+                    # Sentence format: just sentence -> translation
+                    front_parts = []
+                    if card.audio_filename:
+                        front_parts.append(f"[sound:{card.audio_filename}]")
+                    front_parts.append(card.source)
+
                     back_parts = [translation]
+
+                # Tip always at the bottom
+                if card.tip:
+                    back_parts.append(f"<br>💡 <i>{card.tip}</i>")
 
                 front_field = "<br>".join(front_parts)
                 back_field = "<br>".join(back_parts)

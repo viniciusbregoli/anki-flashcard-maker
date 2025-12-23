@@ -72,9 +72,8 @@ def create_anki_package(cards: List[Card], output_filename: str = "anki-deck.apk
         my_deck.add_note(note)
         
         # Check for audio file to include
-        if card.input_type == "word":
-            audio_filename = f"{sanitize_filename(card.source.lower())}_pronunciation.mp3"
-            audio_path = os.path.join("audio", audio_filename)
+        if card.audio_filename:
+            audio_path = os.path.join("audio", card.audio_filename)
             if os.path.exists(audio_path):
                 media_files.append(audio_path)
 
@@ -97,9 +96,9 @@ def _generate_card_html(card: Card):
     translation = ", ".join(card.translation)
     front_parts = []
     back_parts = [translation]
-
+    
+    # Word format
     if card.input_type == "word":
-        # Word format: [sound] (gender) word (plural) + context
         gender_display = (
             f"({card.gender}) "
             if card.gender and card.gender != "N/A"
@@ -111,12 +110,11 @@ def _generate_card_html(card: Card):
             else ""
         )
         sound_field = (
-            f"[sound:{sanitize_filename(card.source.lower())}_pronunciation.mp3]"
+            f"[sound:{card.audio_filename}]" if card.audio_filename else ""
         )
 
-        front_parts = [
-            f"{sound_field} {gender_display}{card.source}{plural_display}"
-        ]
+        front_content = f"{sound_field} {gender_display}{card.source}{plural_display}"
+        front_parts.append(front_content)
         
         if card.context and card.context[0].get("german") != "N/A":
             context_german = card.context[0]["german"]
@@ -125,8 +123,10 @@ def _generate_card_html(card: Card):
             back_parts.append(f"<i>{context_english}</i>")
 
     elif card.input_type == "expression":
-        # Expression format: expression + context (no audio, no gender)
-        front_parts = [card.source]
+        # Expression format: expression + context
+        if card.audio_filename:
+            front_parts.append(f"[sound:{card.audio_filename}]")
+        front_parts.append(card.source)
         
         if card.context and card.context[0].get("german") != "N/A":
             context_german = card.context[0]["german"]
@@ -135,8 +135,14 @@ def _generate_card_html(card: Card):
             back_parts.append(f"<i>{context_english}</i>")
 
     else:  # sentence
-        # Sentence format: just sentence -> translation
-        front_parts = [card.source]
+        # Sentence format: sentence + audio
+        if card.audio_filename:
+            front_parts.append(f"[sound:{card.audio_filename}]")
+        front_parts.append(card.source)
+
+    # Tip goes last on the back
+    if card.tip:
+        back_parts.append(f"<br>💡 <i>{card.tip}</i>")
 
     front_field = "<br>".join(front_parts)
     back_field = "<br>".join(back_parts)

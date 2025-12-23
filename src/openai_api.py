@@ -180,7 +180,7 @@ class OpenAIAPI:
         3. If it is a "word" (specifically a noun), provide the Gender (der, die, das) and Plural form. If not a noun or not applicable, write "N/A".
         4. If it is a "word" or "expression", provide a simple German Context Sentence and its English translation.
         5. If it is a "sentence", Context is not needed (write "N/A").
-        6. Provide a short memory tip, etymology, or compound word breakdown (e.g. "Schreibtisch = schreiben (to write) + Tisch (table)"). IF none exists, write "N/A".
+        6. Provide a short memory tip, etymology, compound word breakdown, OR grammar tip (e.g. usage note). IF none exists, write "N/A".
 
         Format strictly as:
         Type: [word/expression/sentence]
@@ -207,6 +207,34 @@ class OpenAIAPI:
 
         content = response.choices[0].message.content.strip()
         return self._parse_analysis_response(content)
+
+    async def generate_speech(self, text: str, output_path: str) -> bool:
+        """
+        Generate speech audio from text using OpenAI's new Audio model.
+        """
+        try:
+            # We use the new chat completions audio capability
+            response = await self.client.chat.completions.create(
+                model="gpt-4o-mini-audio-preview",
+                modalities=["text", "audio"],
+                audio={"voice": "ash", "format": "mp3"},
+                messages=[
+                    {"role": "user", "content": f"Please read the following German text naturally (just the text): {text}"}
+                ]
+            )
+            
+            # The audio data is returned as a base64 string in the response
+            audio_data_b64 = response.choices[0].message.audio.data
+            
+            # Decode and write to file
+            import base64
+            with open(output_path, "wb") as f:
+                f.write(base64.b64decode(audio_data_b64))
+                
+            return True
+        except Exception as e:
+            print(f"Error generating OpenAI speech for '{text}': {e}")
+            return False
 
     def _parse_analysis_response(self, response_text: str) -> Dict[str, Any]:
         """Parses the unified analysis response."""

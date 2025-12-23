@@ -137,6 +137,35 @@ async def download_package():
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
+class SingleCardRequest(BaseModel):
+    word: str
+    id: int
+
+from src.openai_api import OpenAIAPI
+from line_processing import process_line
+
+@app.post("/api/regenerate-card")
+async def regenerate_card_endpoint(request: SingleCardRequest):
+    """
+    Regenerates a single card for a given word.
+    """
+    try:
+        openai_api = OpenAIAPI()
+        # We reuse process_line. It downloads audio and generates content.
+        # It handles overwriting audio file if filename is same.
+        card = await process_line(request.word, request.id, openai_api)
+        
+        if not card:
+             raise HTTPException(status_code=500, detail="Failed to regenerate card")
+
+        return {
+            "status": "success",
+            "card": card.to_dict()
+        }
+    except Exception as e:
+        print(f"Error regenerating card: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 # Mount React Frontend (Must be last to avoid overriding API routes)
 # Check if the build directory exists (production mode)
 if os.path.exists("web/dist"):
