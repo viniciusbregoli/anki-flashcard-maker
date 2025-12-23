@@ -47,14 +47,29 @@ class Card:
         self.plural = plural
         self.input_type = input_type  # 'word', 'expression', or 'sentence'
 
+    def to_dict(self) -> Dict[str, Any]:
+        """Convert card to dictionary for API response."""
+        return {
+            "id": self.id,
+            "source": self.source,
+            "translation": self.translation,
+            "context": self.context,
+            "gender": self.gender,
+            "plural": self.plural,
+            "input_type": self.input_type,
+            "audio": f"{sanitize_filename(self.source.lower())}_pronunciation.mp3" if self.input_type == "word" else None
+        }
 
-async def process_lines(lines_array: List[str]):
-    """Process each line from the input file to create Anki cards."""
-    cleanup_previous_audio()
+
+async def generate_cards(lines_array: List[str], openai_api: OpenAIAPI = None) -> List[Card]:
+    """
+    Process words and return a list of Card objects.
+    Does not write to file.
+    """
+    if openai_api is None:
+        openai_api = OpenAIAPI()
+
     cards = []
-    openai_api = OpenAIAPI()
-    output_file_path = "output.txt"
-
     print("Starting to process words with OpenAI...")
     for i, line in enumerate(lines_array):
         print(f"Processing word {i+1}/{len(lines_array)}: {line}")
@@ -65,25 +80,28 @@ async def process_lines(lines_array: List[str]):
         else:
             print(f"✗ Failed to process: {line}")
         time.sleep(1)  # Small delay to avoid overwhelming APIs
+    
+    return cards
 
+
+async def process_lines(lines_array: List[str]):
+    """Process each line from the input file to create Anki cards."""
+    cleanup_previous_audio()
+    
+    # Generate the cards
+    cards = await generate_cards(lines_array)
+
+    output_file_path = "output.txt"
     write_cards_to_file(cards, output_file_path)
     print(f"\nProcessed {len(cards)} cards successfully.")
 
 
 async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
-    """Processes a single input (word, expression, or sentence) using the OpenAI API and creates a Card."""
     try:
-        # Detect input type
-        input_type = detect_input_type(line)
+        # Use AI to detect type and get details
+        details = await openai_api.analyze_german_content(line)
+        input_type = details.get("type", "word")
         print(f"  Detected type: {input_type}")
-
-        # Get details based on input type
-        if input_type == "word":
-            details = await openai_api.get_word_details(line.lower())
-        elif input_type == "expression":
-            details = await openai_api.get_expression_details(line)
-        else:  # sentence
-            details = await openai_api.get_sentence_details(line)
 
         if "N/A" in details["translation"]:
             print(f"  - OpenAI failed to process '{line}'. Skipping.")
@@ -91,14 +109,17 @@ async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
 
         # Download pronunciation only for single words
         if input_type == "word":
+            # For words, we download audio and ensure capitalization
             await download_pronunciation(line, "de", index)
+            source_text = capitalize_string(line)
         else:
             print(f"  - Skipping audio download for {input_type}")
+            source_text = line
 
         # Create card
         return Card(
             card_id=index,
-            source=capitalize_string(line) if input_type == "word" else line,
+            source=source_text,
             translation=details.get("translation", []),
             context=details.get("context", []),
             gender=details.get("gender", ""),

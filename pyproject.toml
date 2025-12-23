@@ -1,0 +1,15 @@
+[project]
+name = "anki-flashcard-maker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.13.7"
+dependencies = [
+    "fastapi>=0.127.0",
+    "genanki>=0.13.1",
+    "openai>=2.14.0",
+    "python-dotenv>=1.2.1",
+    "python-multipart>=0.0.21",
+    "requests>=2.32.5",
+    "uvicorn>=0.40.0",
+]

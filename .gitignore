@@ -1,4 +1,7 @@
 .env
+src/__pycache__/
 __pycache__/
 audio/
 output.txt
+input.txt
+*.apkg

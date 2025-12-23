@@ -167,8 +167,76 @@ class OpenAIAPI:
                 key = key.strip().lower().replace(" ", "_")
                 details[key] = value.strip()
 
+    async def analyze_german_content(self, text: str) -> Dict[str, Any]:
+        """
+        Analyze the German text to automatically detect if it is a word, expression, or sentence,
+        and provide the relevant details.
+        """
+        prompt = f"""
+        Analyze the following German text: "{text}"
+        
+        1. Determine if it is a "word" (single noun/verb/adjective), "expression" (phrase/idiom), or "sentence" (complete thought).
+        2. Provide the English translation.
+        3. If it is a "word" (specifically a noun), provide the Gender (der, die, das) and Plural form. If not a noun or not applicable, write "N/A".
+        4. If it is a "word" or "expression", provide a simple German Context Sentence and its English translation.
+        5. If it is a "sentence", Context is not needed (write "N/A").
+
+        Format strictly as:
+        Type: [word/expression/sentence]
+        Translation: [Text]
+        Gender: [Text or N/A]
+        Plural: [Text or N/A]
+        German Context: [Text or N/A]
+        English Context: [Text or N/A]
+        """
+
+        response = await self.client.chat.completions.create(
+            model=self.model,
+            messages=[
+                {
+                    "role": "system",
+                    "content": "You are a German language expert. Analyze the input type intelligently.",
+                },
+                {"role": "user", "content": prompt},
+            ],
+            max_tokens=250,
+            temperature=0.3,
+        )
+
+        content = response.choices[0].message.content.strip()
+        return self._parse_analysis_response(content)
+
+    def _parse_analysis_response(self, response_text: str) -> Dict[str, Any]:
+        """Parses the unified analysis response."""
+        details = {}
+        for line in response_text.split("\n"):
+            if ":" in line:
+                key, value = line.split(":", 1)
+                key = key.strip().lower().replace(" ", "_").replace("*", "")
+                details[key] = value.strip()
+
+        input_type = details.get("type", "word").lower()
+        # Normalize input type just in case
+        if "sentence" in input_type:
+            input_type = "sentence"
+        elif "expression" in input_type:
+            input_type = "expression"
+        else:
+            input_type = "word"
+
+        context = []
+        if details.get("german_context", "N/A") != "N/A":
+            context = [
+                {
+                    "german": details.get("german_context", "N/A"),
+                    "english": details.get("english_context", "N/A"),
+                }
+            ]
+
         return {
+            "type": input_type,
             "translation": [details.get("translation", "N/A")],
-            "gender": "",  # No gender for sentences
-            "context": [],  # No additional context for sentences
+            "gender": details.get("gender", "N/A") if details.get("gender") != "N/A" else "",
+            "plural": details.get("plural", "N/A") if details.get("plural") != "N/A" else "",
+            "context": context,
         }

@@ -1,1 +1,5 @@
 haus
+hund
+auto
+bier
+Ich trinke bier.
