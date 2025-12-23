@@ -38,6 +38,8 @@ class Card:
         gender: str = "",
         plural: str = "",
         input_type: str = "word",
+        tip: str = "",
+        audio_source: str = None
     ):
         self.id = card_id
         self.source = source
@@ -45,7 +47,15 @@ class Card:
         self.context = context
         self.gender = gender
         self.plural = plural
-        self.input_type = input_type  # 'word', 'expression', or 'sentence'
+        self.input_type = input_type
+        self.tip = tip
+        
+        # Audio filename is derived from the successfully downloaded text (audio_source)
+        # If no audio_source was provided (meaning download failed or wasn't attempted), we explicitly set None
+        if audio_source:
+             self.audio_filename = f"{sanitize_filename(audio_source.lower())}_pronunciation.mp3"
+        else:
+             self.audio_filename = None
 
     def to_dict(self) -> Dict[str, Any]:
         """Convert card to dictionary for API response."""
@@ -57,11 +67,12 @@ class Card:
             "gender": self.gender,
             "plural": self.plural,
             "input_type": self.input_type,
-            "audio": f"{sanitize_filename(self.source.lower())}_pronunciation.mp3" if self.input_type == "word" else None
+            "tip": self.tip,
+            "audio": self.audio_filename
         }
 
 
-async def generate_cards(lines_array: List[str], openai_api: OpenAIAPI = None) -> List[Card]:
+async def generate_cards(lines_array: List[str], openai_api: OpenAIAPI = None, progress_callback=None) -> List[Card]:
     """
     Process words and return a list of Card objects.
     Does not write to file.
@@ -71,8 +82,13 @@ async def generate_cards(lines_array: List[str], openai_api: OpenAIAPI = None) -
 
     cards = []
     print("Starting to process words with OpenAI...")
+    total_lines = len(lines_array)
     for i, line in enumerate(lines_array):
-        print(f"Processing word {i+1}/{len(lines_array)}: {line}")
+        # Notify progress if callback exists
+        if progress_callback:
+            await progress_callback(i, total_lines, line)
+
+        print(f"Processing word {i+1}/{total_lines}: {line}")
         card = await process_line(line, i, openai_api)
         if card:
             cards.append(card)
@@ -107,14 +123,46 @@ async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
             print(f"  - OpenAI failed to process '{line}'. Skipping.")
             return None
 
-        # Download pronunciation only for single words
+        source_text = line
+        tip = details.get("tip", "")
+
         if input_type == "word":
-            # For words, we download audio and ensure capitalization
-            await download_pronunciation(line, "de", index)
             source_text = capitalize_string(line)
+            gender = details.get("gender", "")
+            
+            # 1. Redundancy Removal
+            # Check if source_text starts with the gender (case-insensitive)
+            # e.g. "Der Schreibtisch" starts with "der ".lower()
+            if gender and source_text.lower().startswith(f"{gender.lower()} "):
+                # Remove the article and the space
+                source_text = source_text[len(gender) + 1:].strip()
+                # Ensure the new source text is capitalized
+                source_text = capitalize_string(source_text)
+            
+            # 2. Audio Strategy
+            audio_text_success = None
+            
+            # Try with gender first (e.g. "der Tisch")
+            if gender and gender not in ["N/A", ""]:
+                audio_query = f"{gender} {source_text}"
+                success = await download_pronunciation(audio_query, "de", index)
+                if success:
+                    audio_text_success = audio_query
+                else:
+                    print(f"  - Audio for '{audio_query}' failed. Trying '{source_text}'...")
+            
+            # Fallback to just the word if gender failed or didn't exist
+            if not audio_text_success:
+                audio_query = source_text
+                success = await download_pronunciation(audio_query, "de", index)
+                if success:
+                    audio_text_success = audio_query
+                else:
+                    print(f"  - Audio for '{audio_query}' also failed/not found.")
+            
         else:
             print(f"  - Skipping audio download for {input_type}")
-            source_text = line
+            audio_text_success = None
 
         # Create card
         return Card(
@@ -125,6 +173,8 @@ async def process_line(line: str, index: int, openai_api: OpenAIAPI) -> Card:
             gender=details.get("gender", ""),
             plural=details.get("plural", "") if input_type == "word" else "",
             input_type=input_type,
+            tip=tip,
+            audio_source=audio_text_success
         )
     except Exception as e:
         print(f"An error occurred while processing the line '{line}': {e}")
@@ -152,13 +202,16 @@ def write_cards_to_file(cards: List[Card], output_file_path: str):
                         else ""
                     )
                     sound_field = (
-                        f"[sound:{sanitize_filename(card.source.lower())}_pronunciation.mp3]"
+                        f"[sound:{card.audio_filename}]"
                     )
 
                     front_parts = [
                         f"{sound_field} {gender_display}{card.source}{plural_display}"
                     ]
+                    
                     back_parts = [translation]
+                    if card.tip:
+                        back_parts.append(f"<br>💡 <i>{card.tip}</i>")
 
                     if card.context and card.context[0].get("german") != "N/A":
                         context_german = card.context[0]["german"]

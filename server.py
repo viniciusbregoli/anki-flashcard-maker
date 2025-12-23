@@ -1,6 +1,7 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 from typing import List, Optional
 import uvicorn
@@ -9,6 +10,7 @@ import os
 import shutil
 import zipfile
 import asyncio
+import json
 
 from dotenv import load_dotenv
 
@@ -19,6 +21,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), 'src'))
 load_dotenv()
 
 from line_processing import generate_cards, cleanup_previous_audio, write_cards_to_file
+from src.anki_exporter import create_anki_package
 
 app = FastAPI(title="Reverso Anki API")
 
@@ -31,7 +34,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-from fastapi.staticfiles import StaticFiles
 # Ensure audio directory exists
 if not os.path.exists("audio"):
     os.makedirs("audio")
@@ -40,46 +42,85 @@ app.mount("/api/audio", StaticFiles(directory="audio"), name="audio")
 class WordsRequest(BaseModel):
     words: List[str]
 
-from src.anki_exporter import create_anki_package
-
-# ... existing imports ...
-
 @app.post("/api/generate")
 async def generate_cards_endpoint(request: WordsRequest):
     """
     Accepts a list of words, processes them, generating cards AND the Anki package.
+    Returns a stream of progress updates using Server-Sent Events (SSE).
     """
     if not request.words:
         raise HTTPException(status_code=400, detail="No words provided")
     
-    try:
-        # Clean up old audio before starting a new batch
-        cleanup_previous_audio()
+    async def event_generator():
+        q = asyncio.Queue()
+
+        # Simple async function, NOT a generator, so it can be awaited
+        async def progress_callback(current, total, word):
+            data = json.dumps({
+                "type": "progress",
+                "current": current + 1,
+                "total": total,
+                "percent": int(((current) / total) * 100),
+                "word": word
+            })
+            await q.put(f"data: {data}\n\n")
+
+        # Wrapper to run generation and return result or exception
+        async def run_generation():
+            try:
+                # Clean up old audio before starting
+                cleanup_previous_audio()
+                return await generate_cards(request.words, progress_callback=progress_callback)
+            except Exception as e:
+                return e
+
+        task = asyncio.create_task(run_generation())
         
-        # Process the cards
-        # Note: This will download audio to the 'audio/' directory
-        cards = await generate_cards(request.words)
-        
-        # Create Anki Package (.apkg)
-        # This function packages the cards and the audio files into a single importable file
-        create_anki_package(cards, output_filename="anki-deck.apkg")
-        
-        # Also create output.txt as backup/reference (optional)
-        write_cards_to_file(cards, "output.txt")
-        
-        # Return the card data as JSON for preview
-        return {
-            "status": "success",
-            "count": len(cards),
-            "cards": [card.to_dict() for card in cards]
-        }
-        
-    except Exception as e:
-        print(f"Error in generate_cards_endpoint: {e}")
-        # Print full stack trace for debugging
-        import traceback
-        traceback.print_exc()
-        raise HTTPException(status_code=500, detail=str(e))
+        try:
+            while not task.done():
+                try:
+                    # Poll queue with timeout to allow checking task status
+                    item = await asyncio.wait_for(q.get(), timeout=0.1)
+                    yield item
+                except asyncio.TimeoutError:
+                    continue
+
+            # Flush any remaining items
+            while not q.empty():
+                yield await q.get()
+
+            # Check result
+            result = await task
+            
+            if isinstance(result, Exception):
+                raise result # Re-raise to be caught by outer except
+            
+            cards = result
+            
+            # Create Anki Package
+            create_anki_package(cards, output_filename="anki-deck.apkg")
+            write_cards_to_file(cards, "output.txt")
+            
+            # Final success event
+            final_data = json.dumps({
+                "type": "result",
+                "status": "success",
+                "count": len(cards),
+                "cards": [card.to_dict() for card in cards]
+            })
+            yield f"data: {final_data}\n\n"
+            
+        except Exception as e:
+            print(f"Error in generate_cards_endpoint: {e}")
+            import traceback
+            traceback.print_exc()
+            error_data = json.dumps({
+                "type": "error",
+                "message": str(e)
+            })
+            yield f"data: {error_data}\n\n"
+
+    return StreamingResponse(event_generator(), media_type="text/event-stream")
 
 @app.get("/api/download")
 async def download_package():
@@ -93,9 +134,6 @@ async def download_package():
         else:
             raise HTTPException(status_code=404, detail="Package not found. Generate cards first.")
         
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 

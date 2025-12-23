@@ -180,6 +180,7 @@ class OpenAIAPI:
         3. If it is a "word" (specifically a noun), provide the Gender (der, die, das) and Plural form. If not a noun or not applicable, write "N/A".
         4. If it is a "word" or "expression", provide a simple German Context Sentence and its English translation.
         5. If it is a "sentence", Context is not needed (write "N/A").
+        6. Provide a short memory tip, etymology, or compound word breakdown (e.g. "Schreibtisch = schreiben (to write) + Tisch (table)"). IF none exists, write "N/A".
 
         Format strictly as:
         Type: [word/expression/sentence]
@@ -188,6 +189,7 @@ class OpenAIAPI:
         Plural: [Text or N/A]
         German Context: [Text or N/A]
         English Context: [Text or N/A]
+        Tip: [Text or N/A]
         """
 
         response = await self.client.chat.completions.create(
@@ -199,7 +201,7 @@ class OpenAIAPI:
                 },
                 {"role": "user", "content": prompt},
             ],
-            max_tokens=250,
+            max_tokens=300,
             temperature=0.3,
         )
 
@@ -233,10 +235,16 @@ class OpenAIAPI:
                 }
             ]
 
+        # Extract tip
+        tip = details.get("tip", "N/A")
+        if tip == "N/A":
+            tip = ""
+
         return {
             "type": input_type,
             "translation": [details.get("translation", "N/A")],
             "gender": details.get("gender", "N/A") if details.get("gender") != "N/A" else "",
             "plural": details.get("plural", "N/A") if details.get("plural") != "N/A" else "",
             "context": context,
+            "tip": tip
         }
