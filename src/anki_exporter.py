@@ -26,20 +26,26 @@ def create_anki_package(cards: List[Card], output_filename: str = "anki-deck.apk
     """
     
     # 1. Define the Anki Model
-    # We use a simple Basic model with Front and Back fields because existing logic 
-    # already formats HTML strings for Front/Back.
+    # Updated model with separate fields for Tip and conditional Reverse card
     my_model = genanki.Model(
         MODEL_ID,
-        'Simple Model (Reverso)',
+        'Simple Model (Reverso) v2',
         fields=[
             {'name': 'Question'},
             {'name': 'Answer'},
+            {'name': 'Tip'},
+            {'name': 'IsWord'},
         ],
         templates=[
             {
-                'name': 'Card 1',
+                'name': 'German -> English',
                 'qfmt': '{{Question}}',
-                'afmt': '{{FrontSide}}<hr id="answer">{{Answer}}',
+                'afmt': '{{FrontSide}}<hr id="answer">{{Answer}}<br><br>{{#Tip}}💡 <i>{{Tip}}</i>{{/Tip}}',
+            },
+            {
+                'name': 'English -> German (Reversed)',
+                'qfmt': '{{#IsWord}}{{Answer}}<br><br><small style="color:gray">(What is this in German?)</small>{{/IsWord}}',
+                'afmt': '{{FrontSide}}<hr id="answer">{{Question}}<br><br>{{#Tip}}💡 <i>{{Tip}}</i>{{/Tip}}',
             },
         ],
         css=""".card {
@@ -61,13 +67,13 @@ def create_anki_package(cards: List[Card], output_filename: str = "anki-deck.apk
     media_files = []
     
     for card in cards:
-        # Re-use the existing logic to generate the HTML content for front/back
-        front, back = _generate_card_html(card)
+        # Get structured content
+        front, back, tip_content, is_word_flag = _generate_card_fields(card)
         
         # Add note to deck
         note = genanki.Note(
             model=my_model,
-            fields=[front, back]
+            fields=[front, back, tip_content, is_word_flag]
         )
         my_deck.add_note(note)
         
@@ -88,15 +94,18 @@ def create_anki_package(cards: List[Card], output_filename: str = "anki-deck.apk
     return output_filename
 
 
-def _generate_card_html(card: Card):
+def _generate_card_fields(card: Card):
     """
-    Helper to generate the HTML strings for Front and Back fields.
-    Refactored from write_cards_to_file logic.
+    Helper to generate the field content for the Anki note.
+    Returns: (Question, Answer, Tip, IsWord)
     """
     translation = ", ".join(card.translation)
     front_parts = []
     back_parts = [translation]
     
+    is_word = "1" if card.input_type == "word" else ""
+    tip = card.tip if card.tip else ""
+
     # Word format
     if card.input_type == "word":
         gender_display = (
@@ -140,11 +149,12 @@ def _generate_card_html(card: Card):
             front_parts.append(f"[sound:{card.audio_filename}]")
         front_parts.append(card.source)
 
-    # Tip goes last on the back
-    if card.tip:
-        back_parts.append(f"<br>💡 <i>{card.tip}</i>")
-
+    # Tip is now returned separately, not appended to back_parts
+    
     front_field = "<br>".join(front_parts)
     back_field = "<br>".join(back_parts)
     
-    return front_field, back_field
+    return front_field, back_field, tip, is_word
+
+
+
